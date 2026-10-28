@@ -44,3 +44,8 @@ if(MSVC)
     target_compile_options(opengl_mini_renderer PRIVATE /utf-8)
     target_compile_options(glfw PRIVATE /utf-8)
 endif()
+
+# Define shader directory for the application
+target_compile_definitions(opengl_mini_renderer PRIVATE
+    SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+)
