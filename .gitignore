@@ -374,3 +374,6 @@ CTestTestfile.cmake
 Testing/
 compile_commands.json
 CMakeUserPresets.json
+
+/build-manual/
+/glm-src/

@@ -49,3 +49,15 @@ endif()
 target_compile_definitions(opengl_mini_renderer PRIVATE
     SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
 )
+
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.3
+)
+
+FetchContent_MakeAvailable(glm)
+
+target_link_libraries(opengl_mini_renderer
+    PRIVATE glm::glm
+)

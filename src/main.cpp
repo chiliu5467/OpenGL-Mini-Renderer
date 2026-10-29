@@ -1,6 +1,9 @@
 #include <filesystem>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -48,9 +51,10 @@ void processInput(GLFWwindow* window)
 void buildVAOVBO(unsigned int& VAO, unsigned int& VBO)
 {
     const float vertices[] = {
-    -0.5f, -0.5f, 0.0f,
-     0.5f, -0.5f, 0.0f,
-     0.0f,  0.5f, 0.0f
+        // Position           // UV
+        -0.5f, -0.5f, 0.0f,   0.0f, 0.0f,
+         0.5f, -0.5f, 0.0f,   1.0f, 0.0f,
+         0.0f,  0.5f, 0.0f,   0.5f, 1.0f
     };
 
     glGenVertexArrays(1, &VAO);
@@ -66,9 +70,27 @@ void buildVAOVBO(unsigned int& VAO, unsigned int& VBO)
         GL_STATIC_DRAW
     );
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
-        3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(
+        0,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        5 * sizeof(float),
+        (void*)0
+    );
+
     glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        5 * sizeof(float),
+        (void*)(3 * sizeof(float))
+    );
+
+    glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -188,7 +210,9 @@ GLuint CreateShaderProgram(
 void RenderTriangle(
     GLuint shaderProgram,
     GLuint VAO,
-    GLint colorLocation)
+    GLint colorLocation,
+    GLint transformLoc,
+    GLint useTextureLoc)
 {
     // Clear Screen
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -196,6 +220,19 @@ void RenderTriangle(
 
     // Use Shader Program
     glUseProgram(shaderProgram);
+
+    // Use Animated Color Mode
+    glUniform1i(useTextureLoc, GL_FALSE);
+
+    // Use Identity Matrix
+    glm::mat4 identity(1.0f);
+
+    glUniformMatrix4fv(
+        transformLoc,
+        1,
+        GL_FALSE,
+        glm::value_ptr(identity)
+    );
 
     // Calculate Animated Color
     float timeValue =
@@ -222,8 +259,12 @@ void Cleanup(
     GLFWwindow* window,
     GLuint VAO,
     GLuint VBO,
-    GLuint shaderProgram)
+    GLuint shaderProgram,
+    GLuint textureID)
 {
+    if (textureID != 0)
+        glDeleteTextures(1, &textureID);
+
     // Delete OpenGL Resources
     if (shaderProgram != 0)
     {
@@ -247,6 +288,104 @@ void Cleanup(
     }
 
     glfwTerminate();
+}
+
+void CreateTexture(GLuint& textureID)
+{
+    unsigned char pixels[] = {
+        // Bottom row
+        255,   0,   0, 255,
+          0, 255,   0, 255,
+
+          // Top row
+            0,   0, 255, 255,
+          255, 255,   0, 255
+    };
+
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexParameteri(
+        GL_TEXTURE_2D,
+        GL_TEXTURE_MIN_FILTER,
+        GL_NEAREST
+    );
+
+    glTexParameteri(
+        GL_TEXTURE_2D,
+        GL_TEXTURE_MAG_FILTER,
+        GL_NEAREST
+    );
+
+	glTexImage2D(
+        GL_TEXTURE_2D, 
+        0, GL_RGBA, 
+        2, 
+        2, 
+        0, 
+        GL_RGBA, 
+        GL_UNSIGNED_BYTE, 
+        pixels);
+}
+
+void UpdateTransformationMatrix(GLint transformLoc)
+{
+    glm::mat4 transform(1.0f);
+
+    float timeValue =
+        static_cast<float>(glfwGetTime());
+
+    float angle =
+        timeValue * glm::radians(50.0f);
+
+    transform = glm::rotate(
+        transform,
+        angle,
+        glm::vec3(0.0f, 0.0f, 1.0f)
+    );
+
+    float scaleAmount =
+        (std::sin(timeValue) + 1.0f) / 2.0f + 0.5f;
+
+    transform = glm::scale(
+        transform,
+        glm::vec3(scaleAmount)
+    );
+
+    glUniformMatrix4fv(
+        transformLoc,
+        1,
+        GL_FALSE,
+        glm::value_ptr(transform)
+    );
+}
+
+void RenderTexturedTriangle(
+    GLuint shaderProgram,
+    GLuint VAO,
+    GLuint textureID,
+    GLint transformLoc,
+    GLint useTextureLoc)
+{
+    // Clear Screen
+    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Use Shader Program
+    glUseProgram(shaderProgram);
+
+    // Use Texture Mode
+    glUniform1i(useTextureLoc, GL_TRUE);
+
+    // Update Transformation
+    UpdateTransformationMatrix(transformLoc);
+
+    // Bind Texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    // Draw Triangle
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
 }
 
 int main()
@@ -305,6 +444,8 @@ int main()
     std::filesystem::path shaderDir =
         std::filesystem::u8path(SHADER_DIR);
 
+    std::cout << "Shader directory: " << shaderDir << '\n';
+
     std::string vertexCode =
         ReadShaderFile(shaderDir / "triangle.vert");
 
@@ -314,7 +455,7 @@ int main()
     if (vertexCode.empty() || fragmentCode.empty())
     {
         std::cerr << "Failed to load shader source.\n";
-        Cleanup(window, VAO, VBO, 0);
+        Cleanup(window, VAO, VBO, 0, 0);
         return -1;
     }
 
@@ -325,38 +466,87 @@ int main()
     if (shaderProgram == 0)
     {
         std::cerr << "Failed to create shader program\n";
-        Cleanup(window, VAO, VBO, 0);
+        Cleanup(window, VAO, VBO, 0, 0);
         return -1;
     }
 
-    // Step 10: Get Uniform Location
+    // Step 10: Get Uniform Locations
     GLint colorLocation =
         glGetUniformLocation(shaderProgram, "ourColor");
 
-    if (colorLocation == -1)
+    GLint transformLoc =
+        glGetUniformLocation(shaderProgram, "transform");
+
+    GLint textureLocation =
+        glGetUniformLocation(shaderProgram, "ourTexture");
+
+    GLint useTextureLoc =
+        glGetUniformLocation(shaderProgram, "useTexture");
+
+    // Validate Uniform Locations
+    if (colorLocation == -1 ||
+        transformLoc == -1 ||
+        textureLocation == -1 ||
+        useTextureLoc == -1)
     {
-        std::cerr << "Uniform ourColor not found\n";
-        Cleanup(window, VAO, VBO, shaderProgram);
+        std::cerr << "Failed to get uniform locations.\n";
+
+        Cleanup(window, VAO, VBO, shaderProgram, 0);
         return -1;
     }
 
-    // Step 11: Render Loop
+    // Step 11: Create Texture
+    GLuint textureID = 0;
+    CreateTexture(textureID);
+
+    if (textureID == 0)
+    {
+        std::cerr << "Failed to create texture.\n";
+        Cleanup(window, VAO, VBO, shaderProgram, textureID);
+        return -1;
+    }
+
+    // Step 12: Configure Texture Sampler
+    glUseProgram(shaderProgram);
+
+    // Sampler uses Texture Unit 0
+    glUniform1i(textureLocation, 0);
+
+    // Step 13: Select Rendering Mode
+    bool useTextureMode = true;
+
+    // Step 14: Render Loop
     while (!glfwWindowShouldClose(window))
     {
-        // Process Input
         processInput(window);
 
-        RenderTriangle(shaderProgram, VAO, colorLocation);
+        if (useTextureMode)
+        {
+            RenderTexturedTriangle(
+                shaderProgram,
+                VAO,
+                textureID,
+                transformLoc,
+                useTextureLoc
+            );
+        }
+        else
+        {
+            RenderTriangle(
+                shaderProgram,
+                VAO,
+                colorLocation,
+                transformLoc,
+                useTextureLoc
+            );
+        }
 
-        // Swap Buffers
         glfwSwapBuffers(window);
-
-        // Poll Events
         glfwPollEvents();
     }
 
-    // Step 12: Cleanup
-    Cleanup(window, VAO, VBO, shaderProgram);
+    // Step 15: Cleanup
+    Cleanup(window, VAO, VBO, shaderProgram, textureID);
 
     return 0;
 }
