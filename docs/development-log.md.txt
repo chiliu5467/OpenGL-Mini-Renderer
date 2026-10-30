@@ -1,0 +1,66 @@
+## Week 12 Day 5 — Integration Testing & Debugging
+
+**Date:** 2026-10-30  
+**Project:** OpenGLMiniRenderer
+
+### 1. Architecture Overview
+
+The application first uses GLFW to initialize the window and create an OpenGL context. GLAD is then initialized to load the OpenGL function pointers required for rendering.
+
+Vertex data is stored in a Vertex Buffer Object (VBO), while a Vertex Array Object (VAO) records the vertex attribute configuration and associated buffer bindings.
+
+The application compiles and links GLSL shaders into a Shader Program. Uniforms are used to pass data such as transformation matrices from the C++ application to the shaders, while textures provide image data for sampling during fragment processing.
+
+During the render loop, the application updates the necessary rendering state, executes draw calls, swaps buffers to display the rendered result, and processes window events.
+
+When the application exits, OpenGL resources and the GLFW window/context are cleaned up.
+
+### 2. Debugging Notes — CMake Configure Failure
+
+**Problem:**
+
+CMake Configure terminated unexpectedly with exit code `-1073740791` (`0xC0000409`).
+
+**Investigation:**
+
+I added `message(STATUS ...)` statements to `CMakeLists.txt` to identify where the configuration process stopped.
+
+This helped me narrow down the failure to the `FetchContent_MakeAvailable(glm)` stage.
+
+**Workaround:**
+
+I manually downloaded GLM version 1.0.3 using Git and configured `FETCHCONTENT_SOURCE_DIR_GLM` to point to the local GLM source directory.
+
+After applying this workaround, CMake Configure and Build completed successfully, and the application ran successfully.
+
+**What I Learned:**
+
+CMake configuration problems can be investigated incrementally by adding diagnostic messages to identify the stage where execution stops.
+
+I also learned how to override a FetchContent dependency's source directory when troubleshooting dependency-related configuration problems.
+
+The exact underlying cause of the abnormal termination was not determined.
+
+### 3. What I Learned — OpenGL vs. Unity
+
+Before learning OpenGL, I mainly worked with Unity's higher-level rendering and object-management systems.
+
+In Unity, many operations involving meshes, materials, shaders, textures, and transformations are handled through built-in components and engine APIs.
+
+By implementing a small OpenGL renderer in C++, I gained a clearer understanding of the lower-level operations involved in rendering, including creating a graphics context, configuring vertex buffers, compiling shaders, uploading textures, passing uniform data, and executing draw calls.
+
+This experience helped me connect familiar Unity concepts to the underlying graphics pipeline and better understand the responsibilities handled by a game engine.
+
+### 4. Build Validation
+
+- Debug configuration: Passed
+- Release configuration: Passed
+
+Both build configurations completed successfully.
+
+### 5. Next Steps
+
+- Finalize the README and build instructions.
+- Review resource cleanup and error handling.
+- Confirm the repository excludes generated build files.
+- Commit and push the finalized project.
